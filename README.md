@@ -31,13 +31,24 @@ cp contrib/llanod.service ~/.config/systemd/user/   # edit the path if the repo 
 systemctl --user enable --now llanod
 ```
 
-The curve in `llanod.py` maps the hotter of the CPU package (`x86_pkg_temp`) and NVIDIA GPU (`nvidia-smi`) temperatures to fan speed:
+The curve in `llanod.py` maps the NVIDIA GPU temperature (`nvidia-smi`) to fan speed:
 
-| °C | ≤45 | 60 | 70 | 78 | ≥85 |
-|---|---|---|---|---|---|
-| fan % | 20 | 40 | 60 | 80 | 100 |
+| GPU °C | ≤65 | 75 | 80 | ≥84 |
+|---|---|---|---|---|
+| fan % | 30 | 40 | 60 | 80 |
 
-Temperatures are smoothed (laptop CPUs jump 20 °C in a second), and speed rises immediately but drops only after a 4 °C fall. Each poll the daemon reads the pad's status and rewrites the speed if the pad isn't already there under software control. So while it runs, the pad's roller is overridden within a couple of seconds. Stopping the service (`systemctl --user stop llanod`) hands control back to the roller. If the pad disappears, the daemon logs it and reconnects when it comes back.
+It tops out at 80 % because more doesn't help. On an RTX 3080 Ti Laptop GPU training at about 128 W, holding the pad at fixed speeds gave these results (`research/fan_sweep_2026-10-07.txt`):
+
+| fan % | GPU °C | SM clock (MHz) | throttled |
+|---|---|---|---|
+| 100 | 73.0 | 1612 | no |
+| 80 | 73.2 | 1621 | no |
+| 60 | 76.8 | 1593 | no |
+| 40 | 78.0 | 1590 | no |
+
+The CPU doesn't drive the fan yet. That sweep had only one busy CPU core, and the pad barely moved the CPU's temperature (85–87 °C). An all-core measurement (`research/cpu_fan_sweep.py`) will decide whether the CPU gets its own rule.
+
+The temperature is smoothed, and speed rises immediately but drops only after a 3 °C fall. Each poll the daemon reads the pad's status and rewrites the speed if the pad isn't already there under software control. So while it runs, the pad's roller is overridden within a couple of seconds. Stopping the service (`systemctl --user stop llanod`) hands control back to the roller. If the pad disappears, the daemon logs it and reconnects when it comes back.
 
 ## Protocol
 
