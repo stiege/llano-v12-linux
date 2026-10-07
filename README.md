@@ -13,7 +13,7 @@ Neither needs any dependencies beyond Python 3.10+ and access to the pad's `/dev
 python3 llano.py status          # speed 60% (pad control)  lights on  raw 88 3c 00 03 04 00 ff 35
 python3 llano.py speed 100       # software control, fan at 100 %
 python3 llano.py speed 0         # fan off
-python3 llano.py release         # control byte back to 0 (see "Open questions")
+python3 llano.py release         # hand speed control back to the pad's roller
 ```
 
 If you get `Permission denied`, install the udev rule, which gives the logged-in user access to the pad:
@@ -61,7 +61,7 @@ Set-state fields, from the vendor's `SetLapFanParam` builder:
 | 4–6 | lighting parameters | the app sends `04 00 ff` (brightness 255 is byte 6) |
 | 7 | checksum | `~sum(bytes 0–6) & 0xff` |
 
-The status report has the same layout. Its byte 0 was `0x88` before software took control and `0x80` afterwards.
+The status report has the same layout. Byte 0 is `0x88` while the pad is in charge and `0x80` while software is. After `release` (`fan_mode_control = 0`), the pad's own speed roller works again. Status byte 0 stays at `0x80` until the roller is next used, then goes back to `0x88`.
 
 On Linux the hidraw feature ioctls need a leading report-ID byte of `0`, which the kernel strips because the device has no report IDs. So `llano.py` passes 9-byte buffers for 8-byte reports.
 
@@ -76,7 +76,7 @@ On Linux the hidraw feature ioctls need a leading report-ID byte of `0`, which t
 
 ## Open questions
 
-- **Handing control back to the pad.** `release` sends `fan_mode_control = 0`. The status byte 0 stays at `0x80` afterwards, and it hasn't yet been checked whether the pad's own buttons take over again. Power-cycling the pad certainly restores them.
+- **Speed scale.** The pad's roller steps the fan in 100 rpm increments from wherever it currently is. After software set 50 %, the roller gave 1550 rpm rather than round hundreds. How percent maps to rpm hasn't been measured.
 - **Lighting.** Bytes 3–6 are only partly decoded. The app's other light fields (`light_color_mode`, `light_speed`, `light_power`) map onto them, but nothing here sets them.
 - Tested on one pad, reporting version `V1626154887`.
 
