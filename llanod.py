@@ -1,15 +1,19 @@
 """Fan-curve daemon for the llano V12 Ultra pad: CPU/GPU temperature -> pad fan speed.
 
 Each poll it maps the CPU package and GPU temperatures through CURVE, takes the higher
-speed, and writes it to the pad only when it changes. Speed rises immediately and falls
+speed, and writes it whenever the pad isn't already at that speed under software control
+(so the pad's roller is overridden while the daemon runs). Speed rises immediately and falls
 only after the temperature has dropped HYSTERESIS_C below the point that raised it.
 If the pad disappears (unplugged, or passed through to a VM) it logs and waits for it.
+On SIGTERM/SIGINT it hands speed control back to the pad's roller.
 
     python3 llanod.py [--interval 2] [--dry-run]
 """
 import argparse
 import logging
+import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -57,6 +61,15 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
     pad, current, smoothed = None, None, None
+
+    def stop(signum, _frame):
+        log.info('signal %d: handing speed control back to the pad', signum)
+        if pad and not a.dry_run:
+            pad.release()
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
     while True:
         cpu, gpu = cpu_temp(), gpu_temp()
         hottest = max(t for t in (cpu, gpu) if t is not None)
@@ -68,18 +81,22 @@ def main():
             target = max(target, min(current, curve(hottest + HYSTERESIS_C)))
         if target != current:
             log.info('cpu %.0f°C gpu %s -> fan %d%%', cpu, f'{gpu:.0f}°C' if gpu is not None else '?', target)
-            if a.dry_run:
-                current = target
-            else:
-                try:
-                    pad = pad or Pad()
+        if a.dry_run:
+            current = target
+        else:
+            try:
+                pad = pad or Pad()
+                st = pad.status()
+                if (st[0], st[1]) != (0x80, target):
+                    if current == target:
+                        log.info('pad changed to %d%% (status %02x); restoring %d%%', st[1], st[0], target)
                     pad.set_speed(target)
-                    current = target
-                except (LlanoError, OSError) as e:
-                    log.warning('pad unavailable, retrying: %s', e)
-                    if pad:
-                        pad.close()
-                    pad, current = None, None
+                current = target
+            except (LlanoError, OSError) as e:
+                log.warning('pad unavailable, retrying: %s', e)
+                if pad:
+                    pad.close()
+                pad, current = None, None
         time.sleep(a.interval)
 
 

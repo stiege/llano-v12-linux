@@ -37,7 +37,7 @@ The curve in `llanod.py` maps the hotter of the CPU package (`x86_pkg_temp`) and
 |---|---|---|---|---|---|
 | fan % | 20 | 40 | 60 | 80 | 100 |
 
-Temperatures are smoothed (laptop CPUs jump 20 °C in a second), speed rises immediately and drops only after a 4 °C fall, and the pad is only written when the speed changes. If the pad disappears, the daemon logs it and reconnects when it comes back.
+Temperatures are smoothed (laptop CPUs jump 20 °C in a second), and speed rises immediately but drops only after a 4 °C fall. Each poll the daemon reads the pad's status and rewrites the speed if the pad isn't already there under software control. So while it runs, the pad's roller is overridden within a couple of seconds. Stopping the service (`systemctl --user stop llanod`) hands control back to the roller. If the pad disappears, the daemon logs it and reconnects when it comes back.
 
 ## Protocol
 
