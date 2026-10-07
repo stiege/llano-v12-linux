@@ -1,11 +1,16 @@
-"""Fan-curve daemon for the llano V12 Ultra pad: CPU/GPU temperature -> pad fan speed.
+"""Fan-curve daemon for the llano V12 Ultra pad: GPU temperature -> pad fan speed.
 
-Each poll it maps the CPU package and GPU temperatures through CURVE, takes the higher
-speed, and writes it whenever the pad isn't already at that speed under software control
+Each poll it maps the GPU temperature through GPU_CURVE and writes the speed whenever
+the pad isn't already at that speed under software control
 (so the pad's roller is overridden while the daemon runs). Speed rises immediately and falls
 only after the temperature has dropped HYSTERESIS_C below the point that raised it.
 If the pad disappears (unplugged, or passed through to a VM) it logs and waits for it.
 On SIGTERM/SIGINT it hands speed control back to the pad's roller.
+
+GPU_CURVE comes from research/fan_sweep_2026-10-07.txt (RTX 3080 Ti Laptop at ~128 W):
+100 % fan was no better than 80 %, and 40 % cost ~1.5 % SM clock at 78 °C, unthrottled.
+The CPU is logged but not used yet: that sweep was a single-threaded CPU load, and the
+CPU needs its own all-core measurement (research/cpu_fan_sweep.py) before it gets a rule.
 
     python3 llanod.py [--interval 2] [--dry-run]
 """
@@ -20,9 +25,10 @@ from pathlib import Path
 from llano import LlanoError, Pad
 
 # (temperature °C, fan %) points, linearly interpolated, clamped at the ends.
-CURVE = [(45, 20), (60, 40), (70, 60), (78, 80), (85, 100)]
-HYSTERESIS_C = 4
-SMOOTHING = 0.3  # exponential moving average weight per poll; laptop CPUs spike by 20 °C in a second
+GPU_CURVE = [(65, 30), (75, 40), (80, 60), (84, 80)]
+IDLE_SPEED = GPU_CURVE[0][1]  # used while the GPU temperature can't be read (driver asleep)
+HYSTERESIS_C = 3
+SMOOTHING = 0.3  # exponential moving average weight per poll
 
 log = logging.getLogger('llanod')
 
@@ -44,13 +50,13 @@ def gpu_temp() -> float | None:
     return float(r.stdout.split()[0])
 
 
-def curve(temp: float) -> int:
-    if temp <= CURVE[0][0]:
-        return CURVE[0][1]
-    for (t0, s0), (t1, s1) in zip(CURVE, CURVE[1:]):
+def curve(temp: float, points=GPU_CURVE) -> int:
+    if temp <= points[0][0]:
+        return points[0][1]
+    for (t0, s0), (t1, s1) in zip(points, points[1:]):
         if temp <= t1:
             return round(s0 + (s1 - s0) * (temp - t0) / (t1 - t0))
-    return CURVE[-1][1]
+    return points[-1][1]
 
 
 def main():
@@ -72,13 +78,14 @@ def main():
 
     while True:
         cpu, gpu = cpu_temp(), gpu_temp()
-        hottest = max(t for t in (cpu, gpu) if t is not None)
-        smoothed = hottest if smoothed is None else smoothed + SMOOTHING * (hottest - smoothed)
-        hottest = smoothed
-        target = curve(hottest)
-        if current is not None and target < current:
-            # Only step down once we're clear of the band that set the current speed.
-            target = max(target, min(current, curve(hottest + HYSTERESIS_C)))
+        if gpu is None:
+            smoothed, target = None, IDLE_SPEED
+        else:
+            smoothed = gpu if smoothed is None else smoothed + SMOOTHING * (gpu - smoothed)
+            target = curve(smoothed)
+            if current is not None and target < current:
+                # Only step down once we're clear of the band that set the current speed.
+                target = max(target, min(current, curve(smoothed + HYSTERESIS_C)))
         if target != current:
             log.info('cpu %.0f°C gpu %s -> fan %d%%', cpu, f'{gpu:.0f}°C' if gpu is not None else '?', target)
         if a.dry_run:
