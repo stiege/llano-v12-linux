@@ -1,0 +1,10 @@
+# Vendor software and anything extracted from it: not ours to redistribute.
+app/
+dl/
+src/
+usbcenter/
+wineprefix/
+*.pdf
+# Scratch
+__pycache__/
+*.log

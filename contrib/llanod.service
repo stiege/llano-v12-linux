@@ -1,0 +1,10 @@
+[Unit]
+Description=llano V12 Ultra cooling pad fan curve
+
+[Service]
+ExecStart=/usr/bin/python3 %h/projects/llano-v12/llanod.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
