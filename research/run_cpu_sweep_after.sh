@@ -7,4 +7,5 @@ sleep 120  # let the GPU and CPU settle after training
 out=research/cpu_fan_sweep_$(date +%F).txt
 systemctl --user stop llanod
 trap 'systemctl --user start llanod' EXIT
-python3 research/cpu_fan_sweep.py 100 80 60 40 | tee "$out"
+python3 research/cpu_fan_sweep.py 100 80 60 40 | tee "$out.partial"
+mv "$out.partial" "$out"  # pipefail: only reached if the sweep succeeded
