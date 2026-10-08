@@ -1,0 +1,5 @@
+20 busy-loop processes; fan%  cpu°C  clock_MHz  throttled%
+ 100   89.7       2305       65.8
+  80   89.7       2295       65.8
+  60   89.8       2262       65.7
+  40   89.5       2235       65.0
