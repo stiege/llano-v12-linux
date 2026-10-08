@@ -9,8 +9,9 @@ On SIGTERM/SIGINT it hands speed control back to the pad's roller.
 
 GPU_CURVE comes from research/fan_sweep_2026-10-07.txt (RTX 3080 Ti Laptop at ~128 W):
 100 % fan was no better than 80 %, and 40 % cost ~1.5 % SM clock at 78 °C, unthrottled.
-The CPU is logged but not used yet: that sweep was a single-threaded CPU load, and the
-CPU needs its own all-core measurement (research/cpu_fan_sweep.py) before it gets a rule.
+The CPU is logged but not used. Under an all-core load the pad bought ~3 % CPU clock
+(40 % -> 100 % fan) and no change in temperature or throttling
+(research/cpu_fan_sweep_2026-10-08.txt), so the CPU gets no rule.
 
     python3 llanod.py [--interval 2] [--dry-run]
 """

@@ -46,7 +46,16 @@ It tops out at 80 % because more doesn't help. On an RTX 3080 Ti Laptop GPU trai
 | 60 | 76.8 | 1593 | no |
 | 40 | 78.0 | 1590 | no |
 
-The CPU doesn't drive the fan yet. That sweep had only one busy CPU core, and the pad barely moved the CPU's temperature (85–87 °C). An all-core measurement (`research/cpu_fan_sweep.py`) will decide whether the CPU gets its own rule.
+The CPU doesn't drive the fan at all, because the pad does almost nothing for it. With all 20 threads busy (`research/cpu_fan_sweep_2026-10-08.txt`), the package held about 90 °C and throttled about 65 % of the time at every fan speed:
+
+| fan % | CPU °C | mean clock (MHz) | time throttled |
+|---|---|---|---|
+| 100 | 89.7 | 2305 | 66 % |
+| 80 | 89.7 | 2295 | 66 % |
+| 60 | 89.8 | 2262 | 66 % |
+| 40 | 89.5 | 2235 | 65 % |
+
+The extra cooling shows up only as about 3 % more clock, which isn't worth the noise.
 
 The temperature is smoothed, and speed rises immediately but drops only after a 3 °C fall. Each poll the daemon reads the pad's status and rewrites the speed if the pad isn't already there under software control. So while it runs, the pad's roller is overridden within a couple of seconds. Stopping the service (`systemctl --user stop llanod`) hands control back to the roller. If the pad disappears, the daemon logs it and reconnects when it comes back.
 
